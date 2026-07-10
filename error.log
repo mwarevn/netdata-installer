@@ -1,0 +1,513 @@
+══════════════════════════════════════════════════════
+ NETDATA SETUP v1.12 · nitro · Ubuntu 26.04 LTS · máy thật
+ Menu chính › Setup PARENT
+══════════════════════════════════════════════════════
+▸ PARENT = máy trung tâm: nhận stream từ child, lưu dữ liệu, chạy alert (vd: nitro).
+
+── QUÉT PHẦN CỨNG — nitro ──────────
+   CPU        11th Gen Intel(R) Core(TM) i5-11300H @ 3.10GHz (8 threads)
+   RAM        7.0Gi
+   GPU        Intel iGPU — collector intelgpu khả dụng
+   Disk       nvme0n1 476.9G (NVMe)
+   Pin        laptop — chart pin Netdata tự có
+   WiFi       wlp0s20f3 — chart tín hiệu tự có
+   Power      Intel RAPL — điện năng CPU tự có
+   Virt       không (máy thật)
+   Docker     có (5 container đang chạy)
+   Tailscale  100.108.180.117
+⚠ Netdata chưa có trên máy này.
+→ Cài Netdata ngay (kickstart chính thức, kênh stable, tắt telemetry)? [Y/n]: y
+▸ Tải kickstart...
+▸ Đang cài (mất 1-3 phút)...
+
+ --- Using /tmp/netdata-kickstart-c1D87xxxNt as a temporary directory. ---
+ --- Checking for existing installations of Netdata... ---
+ --- No existing installations of netdata found, assuming this is a fresh install. ---
+ --- Attempting to install using native packages... ---
+ WARNING  File not found when checking for remote file at https://repository.netdata.cloud/repos/repoconfig
+
+ --- Checking if native packages are being published for this platform. ---
+ --- Checking for availability of repository configuration package. ---
+[/tmp/netdata-kickstart-c1D87xxxNt]# sh -c "${1}" --fail -q -sSL --connect-timeout 10 --retry 3 --write-out "%{http_code}" --output "${2}" "${3}" > "${4}" _ /usr/bin/curl /tmp/netdata-kickstart-c1D87xxxNt/netdata-repo_5-5+ubuntu26.04_all.deb https://repository.netdata.cloud/repos/repoconfig/ubuntu/resolute/netdata-repo_5-5+ubuntu26.04_all.deb /tmp/netdata-kickstart-c1D87xxxNt/download.log
+ OK
+
+[/tmp/netdata-kickstart-c1D87xxxNt]# find /var/cache/apt/archives -type f -name netdata*.deb -delete
+ OK
+
+[/tmp/netdata-kickstart-c1D87xxxNt]# env DEBIAN_FRONTEND=noninteractive apt-get update -y
+Ign:1 https://pkgs.tailscale.com/stable/ubuntu resolute InRelease
+Hit:2 http://vn.archive.ubuntu.com/ubuntu resolute InRelease
+Get:3 http://vn.archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+Get:4 https://download.docker.com/linux/ubuntu resolute InRelease [32.5 kB]
+Hit:5 http://vn.archive.ubuntu.com/ubuntu resolute-backports InRelease
+Get:6 http://vn.archive.ubuntu.com/ubuntu resolute-updates/main amd64 Packages [330 kB]
+Get:7 http://vn.archive.ubuntu.com/ubuntu resolute-updates/universe amd64 Packages [201 kB]
+Hit:8 http://security.ubuntu.com/ubuntu resolute-security InRelease
+Ign:1 https://pkgs.tailscale.com/stable/ubuntu resolute InRelease
+Ign:1 https://pkgs.tailscale.com/stable/ubuntu resolute InRelease
+Err:1 https://pkgs.tailscale.com/stable/ubuntu resolute InRelease
+  SSL connection failed: error:0A000438:SSL routines::tlsv1 alert internal error / Success [IP: 0.0.0.0 443]
+Fetched 701 kB in 7s (99.7 kB/s)
+Reading package lists... Done
+W: Failed to fetch https://pkgs.tailscale.com/stable/ubuntu/dists/resolute/InRelease  SSL connection failed: error:0A000438:SSL routines::tlsv1 alert internal error / Success [IP: 0.0.0.0 443]
+W: Some index files failed to download. They have been ignored, or old ones used instead.
+ OK
+
+[/tmp/netdata-kickstart-c1D87xxxNt]# env DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install -y /tmp/netdata-kickstart-c1D87xxxNt/netdata-repo_5-5+ubuntu26.04_all.deb
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+Note, selecting 'netdata-repo' instead of '/tmp/netdata-kickstart-c1D87xxxNt/netdata-repo_5-5+ubuntu26.04_all.deb'
+Solving dependencies... Done
+The following packages were automatically installed and are no longer required:
+  libnetfilter-acct1 netdata-user
+Use 'sudo apt autoremove' to remove them.
+The following NEW packages will be installed:
+  netdata-repo
+0 upgraded, 1 newly installed, 0 to remove and 27 not upgraded.
+Need to get 0 B/4,074 B of archives.
+After this operation, 27.6 kB of additional disk space will be used.
+Get:1 /tmp/netdata-kickstart-c1D87xxxNt/netdata-repo_5-5+ubuntu26.04_all.deb netdata-repo all 5-5 [4,074 B]
+Selecting previously unselected package netdata-repo.
+(Reading database… 102559 files and directories currently installed.)
+Preparing to unpack …/netdata-repo_5-5+ubuntu26.04_all.deb…
+Unpacking netdata-repo (5-5)…
+Setting up netdata-repo (5-5)…
+Scanning processes...
+Scanning candidates...
+Scanning processor microcode...
+Scanning linux images...
+
+Running kernel seems to be up-to-date.
+
+The processor microcode seems to be up-to-date.
+
+Restarting services...
+
+Service restarts being deferred:
+ systemctl restart NetworkManager.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+N: Download is performed unsandboxed as root as file '/tmp/netdata-kickstart-c1D87xxxNt/netdata-repo_5-5+ubuntu26.04_all.deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
+ OK
+
+[/tmp/netdata-kickstart-c1D87xxxNt]# env DEBIAN_FRONTEND=noninteractive apt-get update -y
+Ign:1 https://pkgs.tailscale.com/stable/ubuntu resolute InRelease
+Hit:2 https://download.docker.com/linux/ubuntu resolute InRelease
+Hit:3 http://vn.archive.ubuntu.com/ubuntu resolute InRelease
+Hit:4 http://vn.archive.ubuntu.com/ubuntu resolute-updates InRelease
+Hit:5 http://vn.archive.ubuntu.com/ubuntu resolute-backports InRelease
+Hit:6 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ InRelease
+Hit:7 http://security.ubuntu.com/ubuntu resolute-security InRelease
+Hit:8 http://repository.netdata.cloud/repos/repoconfig/ubuntu resolute/ InRelease
+Ign:1 https://pkgs.tailscale.com/stable/ubuntu resolute InRelease
+Ign:1 https://pkgs.tailscale.com/stable/ubuntu resolute InRelease
+Err:1 https://pkgs.tailscale.com/stable/ubuntu resolute InRelease
+  SSL connection failed: error:0A000438:SSL routines::tlsv1 alert internal error / Success [IP: 0.0.0.0 443]
+Reading package lists... Done
+W: Failed to fetch https://pkgs.tailscale.com/stable/ubuntu/dists/resolute/InRelease  SSL connection failed: error:0A000438:SSL routines::tlsv1 alert internal error / Success [IP: 0.0.0.0 443]
+W: Some index files failed to download. They have been ignored, or old ones used instead.
+ OK
+
+[/tmp/netdata-kickstart-c1D87xxxNt]# mkdir -p /etc/netdata
+ OK
+
+[/tmp/netdata-kickstart-c1D87xxxNt]# touch /etc/netdata/.opt-out-from-anonymous-statistics
+ OK
+
+[/tmp/netdata-kickstart-c1D87xxxNt]# env DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install -y netdata
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+Solving dependencies... Done
+The following additional packages will be installed:
+  netdata-dashboard netdata-plugin-apps netdata-plugin-chartsd netdata-plugin-debugfs
+  netdata-plugin-ebpf netdata-plugin-go netdata-plugin-network-viewer netdata-plugin-nfacct
+  netdata-plugin-otel netdata-plugin-otel-signal-viewer netdata-plugin-perf netdata-plugin-pythond
+  netdata-plugin-scripts netdata-plugin-slabinfo netdata-plugin-systemd-journal
+  netdata-plugin-systemd-units
+Suggested packages:
+  netdata-plugin-cups netdata-plugin-freeipmi netdata-plugin-ibm apcupsd nvme-cli
+Recommended packages:
+  netdata-ebpf-code-legacy
+The following NEW packages will be installed:
+  netdata netdata-dashboard netdata-plugin-apps netdata-plugin-chartsd netdata-plugin-debugfs
+  netdata-plugin-ebpf netdata-plugin-go netdata-plugin-network-viewer netdata-plugin-nfacct
+  netdata-plugin-otel netdata-plugin-otel-signal-viewer netdata-plugin-perf netdata-plugin-pythond
+  netdata-plugin-scripts netdata-plugin-slabinfo netdata-plugin-systemd-journal
+  netdata-plugin-systemd-units
+0 upgraded, 17 newly installed, 0 to remove and 28 not upgraded.
+Need to get 140 MB of archives.
+After this operation, 501 MB of additional disk space will be used.
+Get:1 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-dashboard 2.10.3 [14.6 MB]
+Get:2 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-otel-signal-viewer 2.10.3 [19.0 MB]
+Get:3 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-otel 2.10.3 [18.7 MB]
+Get:4 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-chartsd 2.10.3 [15.3 kB]
+Get:5 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-pythond 2.10.3 [177 kB]
+Get:6 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-apps 2.10.3 [469 kB]
+Get:7 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-go 2.10.3 [34.6 MB]
+Get:8 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-debugfs 2.10.3 [364 kB]
+Get:9 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-nfacct 2.10.3 [295 kB]
+Get:10 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-slabinfo 2.10.3 [1,187 kB]
+Get:11 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-perf 2.10.3 [296 kB]
+Get:12 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-ebpf 2.10.3 [916 kB]
+Get:13 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata 2.10.3 [40.8 MB]
+Get:14 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-network-viewer 2.10.3 [415 kB]
+Get:15 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-scripts 2.10.3 [5,032 kB]
+Get:16 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-systemd-journal 2.10.3 [563 kB]
+Get:17 http://repository.netdata.cloud/repos/stable/ubuntu resolute/ netdata-plugin-systemd-units 2.10.3 [2,383 kB]
+Fetched 140 MB in 17s (8,438 kB/s)
+Selecting previously unselected package netdata-dashboard.
+(Reading database… 102561 files and directories currently installed.)
+Preparing to unpack …/00-netdata-dashboard_2.10.3_amd64.deb…
+Unpacking netdata-dashboard (2.10.3)…
+Selecting previously unselected package netdata-plugin-otel-signal-viewer.
+Preparing to unpack …/01-netdata-plugin-otel-signal-viewer_2.10.3_amd64.deb…
+Unpacking netdata-plugin-otel-signal-viewer (2.10.3)…
+Selecting previously unselected package netdata-plugin-otel.
+Preparing to unpack …/02-netdata-plugin-otel_2.10.3_amd64.deb…
+Unpacking netdata-plugin-otel (2.10.3)…
+Selecting previously unselected package netdata-plugin-chartsd.
+Preparing to unpack …/03-netdata-plugin-chartsd_2.10.3_all.deb…
+Unpacking netdata-plugin-chartsd (2.10.3)…
+Selecting previously unselected package netdata-plugin-pythond.
+Preparing to unpack …/04-netdata-plugin-pythond_2.10.3_all.deb…
+Unpacking netdata-plugin-pythond (2.10.3)…
+Selecting previously unselected package netdata-plugin-apps.
+Preparing to unpack …/05-netdata-plugin-apps_2.10.3_amd64.deb…
+Unpacking netdata-plugin-apps (2.10.3)…
+Selecting previously unselected package netdata-plugin-go.
+Preparing to unpack …/06-netdata-plugin-go_2.10.3_amd64.deb…
+Unpacking netdata-plugin-go (2.10.3)…
+Selecting previously unselected package netdata-plugin-debugfs.
+Preparing to unpack …/07-netdata-plugin-debugfs_2.10.3_amd64.deb…
+Unpacking netdata-plugin-debugfs (2.10.3)…
+Selecting previously unselected package netdata-plugin-nfacct.
+Preparing to unpack …/08-netdata-plugin-nfacct_2.10.3_amd64.deb…
+Unpacking netdata-plugin-nfacct (2.10.3)…
+Selecting previously unselected package netdata-plugin-slabinfo.
+Preparing to unpack …/09-netdata-plugin-slabinfo_2.10.3_amd64.deb…
+Unpacking netdata-plugin-slabinfo (2.10.3)…
+Selecting previously unselected package netdata-plugin-perf.
+Preparing to unpack …/10-netdata-plugin-perf_2.10.3_amd64.deb…
+Unpacking netdata-plugin-perf (2.10.3)…
+Selecting previously unselected package netdata-plugin-ebpf.
+Preparing to unpack …/11-netdata-plugin-ebpf_2.10.3_amd64.deb…
+Unpacking netdata-plugin-ebpf (2.10.3)…
+Selecting previously unselected package netdata.
+Preparing to unpack …/12-netdata_2.10.3_amd64.deb…
+Unpacking netdata (2.10.3)…
+Selecting previously unselected package netdata-plugin-network-viewer.
+Preparing to unpack …/13-netdata-plugin-network-viewer_2.10.3_amd64.deb…
+Unpacking netdata-plugin-network-viewer (2.10.3)…
+Selecting previously unselected package netdata-plugin-scripts.
+Preparing to unpack …/14-netdata-plugin-scripts_2.10.3_amd64.deb…
+Unpacking netdata-plugin-scripts (2.10.3)…
+Selecting previously unselected package netdata-plugin-systemd-journal.
+Preparing to unpack …/15-netdata-plugin-systemd-journal_2.10.3_amd64.deb…
+Unpacking netdata-plugin-systemd-journal (2.10.3)…
+Selecting previously unselected package netdata-plugin-systemd-units.
+Preparing to unpack …/16-netdata-plugin-systemd-units_2.10.3_amd64.deb…
+Unpacking netdata-plugin-systemd-units (2.10.3)…
+Setting up netdata-dashboard (2.10.3)…
+Setting up netdata (2.10.3)…
+dpkg-statoverride: error: user 'netdata' does not exist
+dpkg: error processing package netdata (--configure):
+ old netdata package postinst maintainer script subprocess failed with exit status 2
+dpkg: dependency problems prevent configuration of netdata-plugin-pythond:
+ netdata-plugin-pythond depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-pythond (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-systemd-journal:
+ netdata-plugin-systemd-journal depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-systemd-journal (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-debugfs:
+ netdata-plugin-debugfs depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-debugfs (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-scripts:
+ netdata-plugin-scripts depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-scripts (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-otel:
+ netdata-plugin-otel depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-otel (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-perf:
+ netdata-plugin-perf depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-perf (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-otel-signal-viewer:
+ netdata-plugin-otel-signal-viewer depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-otel-signal-viewer (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-network-viewer:
+ netdata-plugin-network-viewer depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-network-viewer (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-chartsd:
+ netdata-plugin-chartsd depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-chartsd (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-systemd-units:
+ netdata-plugin-systemd-units depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-systemd-units (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-ebpf:
+ netdata-plugin-ebpf depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-ebpf (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-nfacct:
+ netdata-plugin-nfacct depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-nfacct (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-apps:
+ netdata-plugin-apps depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-apps (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-go:
+ netdata-plugin-go depends on netdata (= 2.10.3); however:
+  PackaNo apport report written because the error message indicates its a followup error from a previous failure.
+           No apport report written because the error message indicates its a followup error from a previous failure.
+               No apport report written because MaxReports is reached already
+                                                                             No apport report written because MaxReports is reached already
+                                     No apport report written because MaxReports is reached already
+                                                                                                   No apport report written because MaxReports is reached already
+                                                           No apport report written because MaxReports is reached already
+                   No apport report written because MaxReports is reached already
+                                                                                 No apport report written because MaxReports is reached already
+                                         No apport report written because MaxReports is reached already
+ No apport report written because MaxReports is reached already
+                                                               No apport report written because MaxReports is reached already
+                       No apport report written because MaxReports is reached already
+                                                                                     No apport report written because MaxReports is reached already
+                                             No apport report written because MaxReports is reached already
+     ge netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-go (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of netdata-plugin-slabinfo:
+ netdata-plugin-slabinfo depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-slabinfo (--configure):
+ dependency problems - leaving unconfigured
+Errors were encountered while processing:
+ netdata
+ netdata-plugin-pythond
+ netdata-plugin-systemd-journal
+ netdata-plugin-debugfs
+ netdata-plugin-scripts
+ netdata-plugin-otel
+ netdata-plugin-perf
+ netdata-plugin-otel-signal-viewer
+ netdata-plugin-network-viewer
+ netdata-plugin-chartsd
+ netdata-plugin-systemd-units
+ netdata-plugin-ebpf
+ netdata-plugin-nfacct
+ netdata-plugin-apps
+ netdata-plugin-go
+ netdata-plugin-slabinfo
+needrestart is being skipped since dpkg has failed
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+ FAILED
+
+ WARNING  Failed to install Netdata package.
+
+ --- Attempting to uninstall repository configuration package. ---
+[/tmp/netdata-kickstart-c1D87xxxNt]# env DEBIAN_FRONTEND=noninteractive apt-get purge -y netdata-repo
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+Solving dependencies... Done
+The following package was automatically installed and is no longer required:
+  debian-keyring
+Use 'sudo apt autoremove' to remove it.
+The following packages will be REMOVED:
+  netdata-repo*
+0 upgraded, 0 newly installed, 1 to remove and 28 not upgraded.
+16 not fully installed or removed.
+After this operation, 27.6 kB disk space will be freed.
+(Reading database… 104281 files and directories currently installed.)
+Removing netdata-repo (5-5)…
+Setting up netdata (2.10.3)…
+dpkg-statoverride: error: user 'netdata' does not exist
+dpkg: error processing package netdata (--configure):
+ old netdata package postinst maintainer script subprocess failed with exit status 2
+dpkg: dependency problems prevent configuration of netdata-plugin-pythond:
+ netdata-plugin-pythond depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-pythond (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because the error message indicates its a followup error from a previous failure.
+    dpkg: dependency problems prevent configuration of netdata-plugin-systemd-journal:
+ netdata-plugin-systemd-journal depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-systemd-journal (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because the error message indicates its a followup error from a previous failure.
+    dpkg: dependency problems prevent configuration of netdata-plugin-debugfs:
+ netdata-plugin-debugfs depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-debugfs (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-scripts:
+ netdata-plugin-scripts depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-scripts (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-otel:
+ netdata-plugin-otel depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-otel (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-perf:
+ netdata-plugin-perf depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-perf (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-otel-signal-viewer:
+ netdata-plugin-otel-signal-viewer depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-otel-signal-viewer (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-network-viewer:
+ netdata-plugin-network-viewer depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-network-viewer (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-chartsd:
+ netdata-plugin-chartsd depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-chartsd (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-systemd-units:
+ netdata-plugin-systemd-units depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-systemd-units (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-ebpf:
+ netdata-plugin-ebpf depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-ebpf (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-nfacct:
+ netdata-plugin-nfacct depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-nfacct (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-apps:
+ netdata-plugin-apps depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-apps (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-go:
+ netdata-plugin-go depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-go (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              dpkg: dependency problems prevent configuration of netdata-plugin-slabinfo:
+ netdata-plugin-slabinfo depends on netdata (= 2.10.3); however:
+  Package netdata is not configured yet.
+
+dpkg: error processing package netdata-plugin-slabinfo (--configure):
+ dependency problems - leaving unconfigured
+No apport report written because MaxReports is reached already
+                                                              Errors were encountered while processing:
+ netdata
+ netdata-plugin-pythond
+ netdata-plugin-systemd-journal
+ netdata-plugin-debugfs
+ netdata-plugin-scripts
+ netdata-plugin-otel
+ netdata-plugin-perf
+ netdata-plugin-otel-signal-viewer
+ netdata-plugin-network-viewer
+ netdata-plugin-chartsd
+ netdata-plugin-systemd-units
+ netdata-plugin-ebpf
+ netdata-plugin-nfacct
+ netdata-plugin-apps
+ netdata-plugin-go
+ netdata-plugin-slabinfo
+needrestart is being skipped since dpkg has failed
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+ FAILED
+
+The following non-fatal warnings or errors were encountered:
+
+  - File not found when checking for remote file at https://repository.netdata.cloud/repos/repoconfig
+  - Command "env DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install -y netdata" failed with exit code 100.
+  - Failed to install Netdata package.
+  - Command "env DEBIAN_FRONTEND=noninteractive apt-get purge -y netdata-repo" failed with exit code 100.
+
+ ABORTED  Could not install using native binary packages even though they appear to be available. This usually means something is wrong with your system package manager that requires manual intervention to fix. If you want to install anyway without using native packages, re-run this script with the option '--install-type any'
+
+For community support, you can connect with us on:
+  - GitHub: https://github.com/netdata/netdata/discussions
+  - Discord: https://discord.gg/5ygS846fR6
+  - Our community forums: https://community.netdata.cloud/
+[/root]# rm -rf /tmp/netdata-kickstart-c1D87xxxNt
+ OK
+
+✘ Cài Netdata thất bại — xem log phía trên.
+
+   ↩  Enter để về menu...
