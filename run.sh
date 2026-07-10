@@ -36,16 +36,16 @@ KICKSTART_URL="https://get.netdata.cloud/kickstart.sh"
 
 #--------------------------------- màu & in ----------------------------------
 if [ -t 1 ]; then
-  R=$'\e[31m'; G=$'\e[32m'; Y=$'\e[33m'; C=$'\e[36m'; B=$'\e[1m'; N=$'\e[0m'
+  R=$'\e[31m'; G=$'\e[32m'; Y=$'\e[33m'; C=$'\e[36m'; B=$'\e[1m'; D=$'\e[2m'; N=$'\e[0m'
 else
-  R=""; G=""; Y=""; C=""; B=""; N=""
+  R=""; G=""; Y=""; C=""; B=""; D=""; N=""
 fi
 
 # ---- màn hình & breadcrumb ----
-UI_W=54
+UI_W=64
 CRUMBS=()
 
-cls() { # chỉ clear khi stdout là tty (test/pipe thì thôi)
+cls() {
   [ -t 1 ] || return 0
   command clear 2>/dev/null || printf '\033[2J\033[H'
 }
@@ -54,25 +54,26 @@ crumb_push() { CRUMBS+=("$1"); }
 crumb_pop()  { [ ${#CRUMBS[@]} -gt 0 ] && unset "CRUMBS[$((${#CRUMBS[@]}-1))]"; }
 crumb_str()  {
   local out="" c
-  for c in "${CRUMBS[@]}"; do out="${out:+$out › }$c"; done
+  for c in "${CRUMBS[@]}"; do out="${out:+$out ${D}›${N} }$c"; done
   printf '%s' "$out"
 }
 
-ui_header() { # clear + banner + breadcrumb — gọi khi CHUYỂN màn hình
+ui_header() {
   cls
   local bar virt_lbl
-  bar="$(printf '═%.0s' $(seq 1 "$UI_W"))"
+  bar="$(printf '━%.0s' $(seq 1 "$UI_W"))"
   virt_lbl="máy thật"
   [ "$VIRT" != "none" ] && virt_lbl="VM: $VIRT"
-  printf '%s\n' "${B}${bar}${N}"
-  printf '%s\n' " ${B}NETDATA SETUP v${TOOL_VERSION}${N} · $(hostname) · ${OS_NAME} · ${virt_lbl}"
-  printf '%s\n' " ${C}$(crumb_str)${N}"
-  printf '%s\n' "${B}${bar}${N}"
+  printf '  %s\n' "${C}${bar}${N}"
+  printf '  %s %s %s %s %s %s\n' "${B}NETDATA SETUP v${TOOL_VERSION}${N}" \
+    "${C}│${N}" "$(hostname)" "${C}│${N}" "${OS_NAME}" "${C}│${N} ${virt_lbl}"
+  printf '  %s\n' "${C}$(crumb_str)${N}"
+  printf '  %s\n' "${C}${bar}${N}"
 }
 
-pause_return() { echo; read -rp "   ↩  Enter để về menu..." _; }
+pause_return() { echo; read -rp "  ${D}↩${N} Enter để về menu..." _; }
 
-run_screen() { # $1=tên breadcrumb  $2=hàm — quản lý header/crumb/pause tập trung
+run_screen() {
   crumb_push "$1"
   ui_header
   "$2"
@@ -80,13 +81,13 @@ run_screen() { # $1=tên breadcrumb  $2=hàm — quản lý header/crumb/pause t
   pause_return
 }
 
-say()   { printf '%s\n' "${C}▸${N} $*"; }
-ok()    { printf '%s\n' "${G}✔${N} $*"; }
-warn()  { printf '%s\n' "${Y}⚠${N} $*"; }
-err()   { printf '%s\n' "${R}✘${N} $*" >&2; }
+say()   { printf '  %s %s\n' "${C}●${N}" "$*"; }
+ok()    { printf '  %s %s\n' "${G}◆${N}" "$*"; }
+warn()  { printf '  %s %s\n' "${Y}◇${N}" "$*"; }
+err()   { printf '  %s %s\n' "${R}○${N}" "$*" >&2; }
 die()   { err "$*"; exit 1; }
-hr()    { printf '%s\n' "──────────────────────────────────────────────────"; }
-title() { printf '\n%s── %s ──────────%s\n' "${C}${B}" "$*" "${N}"; }
+hr()    { printf '  %s\n' "${D}$(printf '─%.0s' $(seq 1 "$UI_W"))${N}"; }
+title() { printf '\n  %s━━━ %s ━━━%s\n' "${C}${B}" "$*" "${N}"; }
 
 # Hỏi Yes/No — chấp nhận y/n/co/khong, có default
 ask_yn() { # $1=câu hỏi  $2=default(y|n)
@@ -248,8 +249,8 @@ hw_scan() { # gọi "hw_scan force" để quét & in lại
   HW_CPU="$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2- | sed 's/^ *//')"
   [ -n "$HW_CPU" ] || HW_CPU="$(lscpu 2>/dev/null | awk -F: '/Model name/{gsub(/^ */,"",$2); print $2; exit}')"
   HW_RAM="$(free -h 2>/dev/null | awk '/^Mem:/{print $2}')"
-  printf '   %-10s %s (%s threads)\n' "CPU" "${HW_CPU:-?}" "$(nproc 2>/dev/null || echo '?')"
-  printf '   %-10s %s\n' "RAM" "${HW_RAM:-?}"
+  printf "  ${D}%-10s${N} %s (%s threads)\n" "CPU" "${HW_CPU:-?}" "$(nproc 2>/dev/null || echo '?')"
+  printf "  ${D}%-10s${N} %s\n" "RAM" "${HW_RAM:-?}"
 
   # GPU — duyệt PCI class 0x03xxxx (display controller)
   local d cls ven
@@ -271,18 +272,18 @@ hw_scan() { # gọi "hw_scan force" để quét & in lại
     esac
   done
   case "${HW_GPU_NVIDIA:-none}" in
-    driver) printf '   %-10s NVIDIA %s [driver OK]\n' "GPU" \
+    driver) printf "  ${D}%-10s${N} NVIDIA %s  ${G}[driver OK]${N}\n" "GPU" \
               "$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" ;;
-    gpu)    printf '   %-10s NVIDIA (PCI) — %sCHƯA có driver%s, tool có thể cài\n' "GPU" "$Y" "$N" ;;
+    gpu)    printf "  ${D}%-10s${N} NVIDIA (PCI) — ${Y}CHƯA có driver${N}, tool có thể cài\n" "GPU" ;;
     *)      case "$(nvidia_state)" in
-               driver) printf '   %-10s NVIDIA %s [driver OK]\n' "GPU" \
+               driver) printf "  ${D}%-10s${N} NVIDIA %s  ${G}[driver OK]${N}\n" "GPU" \
                          "$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" ;;
-               gpu)    printf '   %-10s NVIDIA (PCI) — %sCHƯA có driver%s, tool có thể cài\n' "GPU" "$Y" "$N" ;;
+               gpu)    printf "  ${D}%-10s${N} NVIDIA (PCI) — ${Y}CHƯA có driver${N}, tool có thể cài\n" "GPU" ;;
             esac
             ;;
   esac
-  [ "$HW_GPU_INTEL" = 1 ] && printf '   %-10s Intel iGPU — collector intelgpu khả dụng\n' "GPU"
-  [ "$HW_GPU_AMD"  = 1 ] && printf '   %-10s AMD — nhiệt độ/power qua lm-sensors (amdgpu hwmon)\n' "GPU"
+  [ "$HW_GPU_INTEL" = 1 ] && printf "  ${D}%-10s${N} Intel iGPU — collector intelgpu khả dụng\n" "GPU"
+  [ "$HW_GPU_AMD"  = 1 ] && printf "  ${D}%-10s${N} AMD — nhiệt độ/power qua lm-sensors (amdgpu hwmon)\n" "GPU"
 
   # Disk vật lý (bỏ loop/zram/ram/cdrom) — phân loại NVMe / SSD / HDD
   HW_DISKS="$(lsblk -dno NAME,SIZE,ROTA,TYPE 2>/dev/null | awk '
@@ -291,19 +292,19 @@ hw_scan() { # gọi "hw_scan force" để quét & in lại
       printf "%s%s %s (%s)", sep, $1, $2, kind; sep=" · "
     }')"
   if [ -n "$HW_DISKS" ]; then
-    printf '   %-10s %s\n' "Disk" "$HW_DISKS"
+    printf "  ${D}%-10s${N} %s\n" "Disk" "$HW_DISKS"
     [ "$VIRT" = "none" ] && HW_PHYS_DISK=1
   fi
 
   # Pin laptop → chart power_supply Netdata tự có
   if compgen -G "/sys/class/power_supply/BAT*" >/dev/null 2>&1; then
-    printf '   %-10s laptop — chart pin Netdata tự có\n' "Pin"
+    printf "  ${D}%-10s${N} laptop — chart pin Netdata tự có\n" "Pin"
   fi
 
   # IPMI/BMC (server)
   if compgen -G "/sys/class/ipmi/*" >/dev/null 2>&1 || [ -e /dev/ipmi0 ]; then
     HW_IPMI=1
-    printf '   %-10s có BMC — collector freeipmi khả dụng\n' "IPMI"
+    printf "  ${D}%-10s${N} có BMC — collector freeipmi khả dụng\n" "IPMI"
   fi
 
   # UPS qua NUT
@@ -311,7 +312,7 @@ hw_scan() { # gọi "hw_scan force" để quét & in lại
      || systemctl is-active upsd >/dev/null 2>&1 \
      || pgrep -x upsd >/dev/null 2>&1; then
     HW_UPS=1
-    printf '   %-10s NUT (upsd) đang chạy — collector upsd khả dụng\n' "UPS"
+    printf "  ${D}%-10s${N} NUT (upsd) đang chạy — collector upsd khả dụng\n" "UPS"
   fi
 
   # WiFi interface → chart tín hiệu tự có
@@ -320,24 +321,24 @@ hw_scan() { # gọi "hw_scan force" để quét & in lại
     [ -d "$w" ] && ifaces="$ifaces $(basename "$(dirname "$w")")"
   done
   HW_WIFI="${ifaces# }"
-  [ -n "$HW_WIFI" ] && printf '   %-10s %s — chart tín hiệu tự có\n' "WiFi" "$HW_WIFI"
+  [ -n "$HW_WIFI" ] && printf "  ${D}%-10s${N} %s — chart tín hiệu tự có\n" "WiFi" "$HW_WIFI"
 
   [ -d /sys/class/powercap/intel-rapl ] \
-    && printf '   %-10s Intel RAPL — điện năng CPU tự có\n' "Power"
+    && printf "  ${D}%-10s${N} Intel RAPL — điện năng CPU tự có\n" "Power"
 
   if [ "$VIRT" = "none" ]; then
-    printf '   %-10s không (máy thật)\n' "Virt"
+    printf "  ${D}%-10s${N} không (máy thật)\n" "Virt"
   else
-    printf '   %-10s %s\n' "Virt" "$VIRT"
+    printf "  ${D}%-10s${N} %s\n" "Virt" "$VIRT"
   fi
   if command -v docker >/dev/null 2>&1; then
-    printf '   %-10s có (%s container đang chạy)\n' "Docker" "$(docker ps -q 2>/dev/null | wc -l)"
+    printf "  ${D}%-10s${N} có (%s container đang chạy)\n" "Docker" "$(docker ps -q 2>/dev/null | wc -l)"
   else
-    printf '   %-10s chưa cài\n' "Docker"
+    printf "  ${D}%-10s${N} chưa cài\n" "Docker"
   fi
   local tsip
   tsip="$(tailscale ip -4 2>/dev/null | head -1)"
-  printf '   %-10s %s\n' "Tailscale" "${tsip:-chưa có}"
+  printf "  ${D}%-10s${N} %s\n" "Tailscale" "${tsip:-chưa có}"
 }
 
 APT_UPDATED=0
@@ -1099,26 +1100,31 @@ feat_add() { # key  on(1/0)  label  [note]  [lock-reason]
   [ -n "${FEAT_LOCK[$k]}" ] && FEAT_ON[$k]=0
 }
 
-feat_menu() { # màn hình riêng — redraw tại chỗ sau mỗi lần bật/tắt
+feat_menu() {
   crumb_push "Chọn tính năng"
   local i k mark sel msg=""
   while true; do
     ui_header
-    printf '\n   Nhập %ssố%s để bật/tắt · %sEnter%s để áp dụng\n\n' "$B" "$N" "$B" "$N"
+    printf '\n  %s━━━ Bật / tắt (nhập số để đảo · Enter để áp dụng) ━━━%s\n\n' "${C}${B}" "$N"
     i=1
     for k in "${FEAT_KEYS[@]}"; do
       if [ -n "${FEAT_LOCK[$k]}" ]; then
-        printf '   %2d. [--] %s  %s(%s)%s\n' "$i" "${FEAT_LABEL[$k]}" "$Y" "${FEAT_LOCK[$k]}" "$N"
+        printf "  ${D}%2d${N}  ${Y}—${N}   %s  ${D}%s${N}\n" "$i" "${FEAT_LABEL[$k]}" "${FEAT_LOCK[$k]}"
       else
-        mark=" "; [ "${FEAT_ON[$k]}" = 1 ] && mark="${G}x${N}"
-        printf '   %2d. [%s] %s%s\n' "$i" "$mark" "${FEAT_LABEL[$k]}" \
-          "${FEAT_NOTE[$k]:+  $C(${FEAT_NOTE[$k]})$N}"
+        if [ "${FEAT_ON[$k]}" = 1 ]; then
+          mark="${G}●${N}"
+        else
+          mark="${D}○${N}"
+        fi
+        printf "  ${C}%2d${N}  %s  %s" "$i" "$mark" "${FEAT_LABEL[$k]}"
+        [ -n "${FEAT_NOTE[$k]}" ] && printf "  ${D}(%s)${N}" "${FEAT_NOTE[$k]}"
+        printf '\n'
       fi
       i=$((i+1))
     done
     echo
     [ -n "$msg" ] && { warn "$msg"; msg=""; }
-    read -rp "   ➜ " sel
+    read -rp "  ${D}➜${N} Số để đảo, Enter để áp dụng: " sel
     [ -z "$sel" ] && break
     if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#FEAT_KEYS[@]}" ]; then
       k="${FEAT_KEYS[$((sel-1))]}"
@@ -1132,7 +1138,7 @@ feat_menu() { # màn hình riêng — redraw tại chỗ sau mỗi lần bật/t
     fi
   done
   crumb_pop
-  ui_header   # về màn hình flow sạch sau khi chốt tính năng
+  ui_header
 }
 
 feat_common_add() { # các tính năng chung — build ĐỘNG theo kết quả hw_scan
@@ -1262,12 +1268,12 @@ summary_parent() {
 
   # In menu
   for i in $(seq 0 2 $((${#opts[@]}-1))); do
-    printf '   %d) %s\n' "$((i/2 + 1))" "${opts[i+1]}"
+    printf "  ${C}%d${N}  %s\n" "$((i/2 + 1))" "${opts[i+1]}"
   done
 
   # Lấy lựa chọn
   while true; do
-    read -rp "   ➜ Chọn (1-$(( ${#opts[@]} / 2 ))): " choice
+    read -rp "  ${D}➜${N} Chọn (1-$(( ${#opts[@]} / 2 ))): " choice
     if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le $(( ${#opts[@]} / 2 )) ]; then
        local idx=$(( (choice-1)*2 ))
        pair_ip="${opts[idx]}"
@@ -1283,27 +1289,28 @@ summary_parent() {
   fi
 
   title "XONG — PARENT ($(hostname))"
-  cat << EOF
-   Dashboard  : http://${ts:-<IP-máy-này>}:19999
-   API key    : ${API_KEY:-<chưa đặt>}
-   Backup cfg : $BACKUP_DIR
-   Có sẵn     : per-NIC traffic, uptime, disk I/O, load... (Netdata mặc định)
-EOF
+  printf "  ${D}•${N}  Dashboard  ${D}→${N}  http://%s:19999\n" "${ts:-<IP-máy-này>}"
+  printf "  ${D}•${N}  API key    ${D}→${N}  %s\n" "${API_KEY:-<chưa đặt>}"
+  printf "  ${D}•${N}  Backup cfg ${D}→${N}  %s\n" "$BACKUP_DIR"
+  say "Có sẵn per-NIC traffic, uptime, disk I/O, load... (Netdata mặc định)"
   hr
-  say "${B}COPY DÒNG DƯỚI${N} — khi setup CHILD, dán vào câu hỏi đầu tiên:"
-  printf '\n   %sNDPAIR:%s:%s%s\n\n' "$B" "$pair_ip" "$API_KEY" "$N"
-  hr
-  say "Quên copy? Chạy lại tool → menu 3 (Trạng thái) sẽ in lại chuỗi này."
+  echo
+  printf "  ${C}${B}╭────────────────────────────────────────────────────────────────╮${N}\n"
+  printf "  ${C}${B}│${N}  ${B}COPY DÒNG DƯỚI — dán khi setup CHILD${N}                ${C}${B}│${N}\n"
+  printf "  ${C}${B}│${N}                                                              ${C}${B}│${N}\n"
+  printf "  ${C}${B}│${N}    NDPAIR:%s:%s                  ${C}${B}│${N}\n" "$pair_ip" "$API_KEY"
+  printf "  ${C}${B}│${N}                                                              ${C}${B}│${N}\n"
+  printf "  ${C}${B}╰────────────────────────────────────────────────────────────────╯${N}\n"
+  echo
+  say "Quên copy? Chạy lại tool → menu ${C}3${N} (Trạng thái) sẽ in lại chuỗi này."
 }
 
 summary_child() {
   title "XONG — CHILD ($(hostname))"
-  cat << EOF
-   Stream về  : ${PARENT_IP:-<?>}:19999
-   Backup cfg : $BACKUP_DIR
-   Xem dữ liệu node này tại dashboard PARENT: http://${PARENT_IP:-<parent>}:19999
-   (Web UI cục bộ đã khóa 127.0.0.1 nếu anh bật tính năng đó)
-EOF
+  printf "  ${D}•${N}  Stream về  ${D}→${N}  %s:19999\n" "${PARENT_IP:-<?>}"
+  printf "  ${D}•${N}  Backup cfg ${D}→${N}  %s\n" "$BACKUP_DIR"
+  printf "  ${D}•${N}  Dashboard  ${D}→${N}  http://%s:19999\n" "${PARENT_IP:-<parent>}"
+  say "Web UI cục bộ đã khóa 127.0.0.1 nếu anh bật tính năng đó."
 }
 
 #===============================================================================
@@ -1397,7 +1404,7 @@ do_status() {
       err "Service netdata: $(systemctl is-active netdata 2>/dev/null)"
     fi
     say "Đang nghe:"
-    ss -tlnp 2>/dev/null | awk '/:19999/ {print "    " $4}' | sort -u
+    ss -tlnp 2>/dev/null | awk '/:19999/ {print "  " $4}' | sort -u
 
     # Vai trò CHILD?
     local sen sdest
@@ -1406,7 +1413,7 @@ do_status() {
     if [ "$sen" = "yes" ] && [ -n "$sdest" ]; then
       say "Vai trò CHILD → stream về $sdest"
       journalctl -u netdata --no-pager -n 300 2>/dev/null \
-        | grep -iE 'stream|sender' | tail -3 | sed 's/^/    /'
+        | grep -iE 'stream|sender' | tail -3 | sed 's/^/  /'
     fi
     # Vai trò PARENT?
     local pk mh
@@ -1414,14 +1421,14 @@ do_status() {
     if [ -n "$pk" ]; then
       say "Vai trò PARENT — API key: $pk"
       [ -f "$NDDIR/.ndpair" ] \
-        && say "Chuỗi ghép child (copy dán khi setup child): ${B}$(cat "$NDDIR/.ndpair")${N}"
+        && say "Chuỗi ghép child: ${C}$(cat "$NDDIR/.ndpair")${N}"
       mh="$(nd_api /api/v1/info | grep -o '"mirrored_hosts":\[[^]]*\]' || true)"
       [ -n "$mh" ] && say "Nodes: $mh"
     fi
 
     if command -v sensors >/dev/null 2>&1; then
       say "Nhiệt độ:"
-      sensors 2>/dev/null | grep '°C' | head -4 | sed 's/^/    /'
+      sensors 2>/dev/null | grep '°C' | head -4 | sed 's/^/  /'
     fi
     id -nG netdata 2>/dev/null | grep -qw docker && ok "netdata ∈ group docker"
     [ -f "$NDDIR/go.d/ping.conf" ]         && ok "ping.conf: có"
@@ -1438,12 +1445,12 @@ do_status() {
   echo
   say "IP hiện tại của máy này:"
   ip -4 -o addr show scope global 2>/dev/null \
-    | awk '{split($4,a,"/"); printf "    %-14s %s\n", $2, a[1]}'
+    | awk '{split($4,a,"/"); printf "  %-14s %s\n", $2, a[1]}'
   local tsip pub
   tsip="$(tailscale ip -4 2>/dev/null | head -1)"
-  [ -n "$tsip" ] && printf '    %-14s %s\n' "tailscale" "$tsip"
+  [ -n "$tsip" ] && printf "  ${D}%-14s${N} %s\n" "tailscale" "$tsip"
   pub="$(curl -s --max-time 3 https://ifconfig.me || curl -s --max-time 3 https://api.ipify.org || curl -s --max-time 3 https://ifconfig.co || true)"
-  [ -n "$pub" ] && printf '    %-14s %s\n' "public" "$pub"
+  [ -n "$pub" ] && printf "  ${D}%-14s${N} %s\n" "public" "$pub"
 }
 
 #---- Gỡ / khôi phục -----------------------------------------------------------
@@ -1706,15 +1713,15 @@ purge_backups() {
 do_uninstall() {
   cat << EOF
 
-   [1]  Gỡ SẠCH Netdata        kickstart --uninstall, dọn cả ip-watch
-   [2]  Gỡ config tool tạo     giữ Netdata, khôi phục config gốc từ backup
-   [3]  Chỉ gỡ IP-watch        cron + script + state
-   [4]  Dọn backup/snapshot    xóa setup-backups + snapshot trong $SNAP_BASE
-   [0]  Quay lại
+    ${C}${B}1${N}   Gỡ SẠCH Netdata        ${D}–${N}  kickstart --uninstall, dọn cả ip-watch
+    ${C}${B}2${N}   Gỡ config tool tạo     ${D}–${N}  giữ Netdata, khôi phục config gốc từ backup
+    ${C}${B}3${N}   Chỉ gỡ IP-watch        ${D}–${N}  cron + script + state
+    ${C}${B}4${N}   Dọn backup/snapshot    ${D}–${N}  xóa backup + snapshot trong $SNAP_BASE
+    ${C}${B}0${N}   Quay lại
 
 EOF
   local c
-  read -rp "   ➜ Chọn: " c
+  read -rp "  ${D}➜${N} Nhập số: " c
   case "$c" in
     1) uninstall_netdata_full ;;
     2) remove_tool_configs ;;
@@ -1729,26 +1736,21 @@ EOF
 #===============================================================================
 usage() {
   cat << EOF
-netdata-setup.sh v$TOOL_VERSION — cài & cấu hình Netdata parent/child tự động
+  netdata-setup.sh v$TOOL_VERSION — cài & cấu hình Netdata parent/child
 
-Cách dùng:   sudo bash netdata-setup.sh
+  Cách dùng:   sudo bash netdata-setup.sh
 
-Menu chính:
-  1) PARENT : nhận stream từ child, dashboard tổng, Telegram alert, alert nhiệt độ
-  2) CHILD  : stream về parent, khóa Web UI localhost, tắt alert cục bộ
-  3) Trạng thái : service, streaming, sensors, các IP của máy (+ in lại NDPAIR)
-  4) Gỡ / khôi phục : gỡ sạch / chỉ gỡ config tool tạo (restore backup) / gỡ ip-watch
+  Menu chính:
+    1. PARENT        — Nhận stream từ child, dashboard tổng, Telegram alert
+    2. CHILD         — Stream về parent, khóa Web UI, tắt alert cục bộ
+    3. Trạng thái    — Service, streaming, sensors, các IP (+ NDPAIR)
+    4. Gỡ / khôi phục — Gỡ sạch / chỉ gỡ config tool / gỡ ip-watch
 
-Ghép parent-child: setup PARENT xong tool in chuỗi NDPAIR:<ip>:<key> —
-copy lại, setup CHILD dán vào câu hỏi đầu tiên là tự điền IP + key.
+  Ghép parent-child: setup PARENT xong tool in chuỗi NDPAIR, setup CHILD
+  dán vào câu hỏi đầu tiên là tự điền IP + key.
 
-Tool TỰ QUÉT PHẦN CỨNG rồi build menu theo máy: NVIDIA (hỏi cài driver nếu
-thiếu), Intel iGPU, S.M.A.R.T. ổ cứng, IPMI, UPS/NUT, pin, WiFi... Kèm menu
-bật/tắt: lm-sensors, Docker (tự hỏi cài), ping, systemd, Telegram, IP-watch,
-UFW, bind IP.
-
-Mọi file config bị sửa đều được backup: /etc/netdata/setup-backups/<timestamp>/
-Chạy lại nhiều lần an toàn — tool sửa đúng key, không nhân đôi config.
+  Tool tự quét phần cứng: NVIDIA, Intel iGPU, S.M.A.R.T., IPMI, UPS...
+  Mọi config đều backup vào /etc/netdata/setup-backups/<timestamp>/
 EOF
 }
 
@@ -1757,16 +1759,16 @@ main_menu() {
   ui_header
   cat << EOF
 
-   [1]  Setup PARENT      máy trung tâm — dashboard + alert tập trung
-   [2]  Setup CHILD       node stream dữ liệu về parent
-   [3]  Trạng thái        service · vai trò · streaming · sensors · IP
-   [4]  Gỡ / khôi phục    gỡ sạch Netdata, hoặc chỉ gỡ config tool tạo
-   [5]  Telegram alert    test · cấu hình lần đầu · đổi bot
-   [0]  Thoát
+    ${C}${B}1${N}   PARENT        ${D}–${N}  Setup máy trung tâm — dashboard + alert tập trung
+    ${C}${B}2${N}   CHILD         ${D}–${N}  Setup node stream dữ liệu về parent
+    ${C}${B}3${N}   Trạng thái    ${D}–${N}  Service · vai trò · streaming · sensors · IP
+    ${C}${B}4${N}   Gỡ / khôi phục ${D}–${N}  Gỡ sạch Netdata hoặc chỉ gỡ config tool tạo
+    ${C}${B}5${N}   Telegram      ${D}–${N}  Test · cấu hình lần đầu · đổi bot
+    ${C}${B}0${N}   Thoát
 
 EOF
   local c
-  read -rp "   ➜ Chọn: " c
+  read -rp "  ${D}➜${N} Nhập số: " c
   case "$c" in
     1) run_screen "Setup PARENT"    setup_parent ;;
     2) run_screen "Setup CHILD"     setup_child ;;
