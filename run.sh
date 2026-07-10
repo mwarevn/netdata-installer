@@ -235,13 +235,13 @@ nvidia_state() { # in ra: driver | gpu | none
 #------------------------------ quét phần cứng -------------------------------
 # Detect 1 lần, lưu vào biến HW_* — menu tính năng dựa vào đây để tự bật/khóa
 HW_CPU=""; HW_RAM=""; HW_DISKS=""; HW_PHYS_DISK=0
-HW_GPU_INTEL=0; HW_GPU_AMD=0; HW_IPMI=0; HW_UPS=0; HW_WIFI=""
+HW_GPU_INTEL=0; HW_GPU_AMD=0; HW_GPU_NVIDIA=""; HW_IPMI=0; HW_UPS=0; HW_WIFI=""
 HW_SCANNED=0
 
 hw_scan() { # gọi "hw_scan force" để quét & in lại
   [ "$HW_SCANNED" = 1 ] && [ "${1:-}" != "force" ] && return 0
   HW_SCANNED=1
-  HW_GPU_INTEL=0; HW_GPU_AMD=0; HW_IPMI=0; HW_UPS=0; HW_PHYS_DISK=0
+  HW_GPU_INTEL=0; HW_GPU_AMD=0; HW_GPU_NVIDIA=""; HW_IPMI=0; HW_UPS=0; HW_PHYS_DISK=0
   title "QUÉT PHẦN CỨNG — $(hostname)"
 
   # CPU + RAM
@@ -261,12 +261,25 @@ hw_scan() { # gọi "hw_scan force" để quét & in lại
     case "$ven" in
       0x8086) HW_GPU_INTEL=1 ;;
       0x1002) HW_GPU_AMD=1 ;;
+      0x10de) # NVIDIA — kiểm tra driver bằng cách thử chạy nvidia-smi
+        if command -v nvidia-smi >/dev/null 2>&1; then
+           HW_GPU_NVIDIA=driver
+        else
+           HW_GPU_NVIDIA=gpu
+        fi
+        ;;
     esac
   done
-  case "$(nvidia_state)" in
+  case "${HW_GPU_NVIDIA:-none}" in
     driver) printf '   %-10s NVIDIA %s [driver OK]\n' "GPU" \
               "$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" ;;
     gpu)    printf '   %-10s NVIDIA (PCI) — %sCHƯA có driver%s, tool có thể cài\n' "GPU" "$Y" "$N" ;;
+    *)      case "$(nvidia_state)" in
+               driver) printf '   %-10s NVIDIA %s [driver OK]\n' "GPU" \
+                         "$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" ;;
+               gpu)    printf '   %-10s NVIDIA (PCI) — %sCHƯA có driver%s, tool có thể cài\n' "GPU" "$Y" "$N" ;;
+            esac
+            ;;
   esac
   [ "$HW_GPU_INTEL" = 1 ] && printf '   %-10s Intel iGPU — collector intelgpu khả dụng\n' "GPU"
   [ "$HW_GPU_AMD"  = 1 ] && printf '   %-10s AMD — nhiệt độ/power qua lm-sensors (amdgpu hwmon)\n' "GPU"
@@ -439,8 +452,12 @@ install_netdata() {
   if ! getent passwd netdata >/dev/null; then useradd -r -g netdata -s /usr/sbin/nologin netdata; fi
 
   say "Đang cài (mất 1-3 phút)..."
-  sh "$ks" --non-interactive --stable-channel --disable-telemetry \
-    || { err "Cài Netdata thất bại — xem log phía trên."; return 1; }
+  # Thử cài native, nếu lỗi thì thử lại với type 'any'
+  if ! sh "$ks" --non-interactive --stable-channel --disable-telemetry; then
+    warn "Cài native thất bại, thử lại với --install-type any..."
+    sh "$ks" --non-interactive --stable-channel --disable-telemetry --install-type any \
+      || { err "Cài Netdata thất bại."; return 1; }
+  fi
   systemctl enable --now netdata >/dev/null 2>&1 || true
   netdata_installed || { err "Cài xong nhưng không thấy service netdata."; return 1; }
   ok "Đã cài Netdata: $(netdata_version)"
@@ -462,8 +479,8 @@ install_netdata() {
 f_sensors() {
   title "Nhiệt độ (lm-sensors)"
   apt_install lm-sensors || { warn "Cài lm-sensors thất bại — bỏ qua."; return 1; }
-  say "Dò sensor chip (sensors-detect --auto)..."
-  sensors-detect --auto >/dev/null 2>&1 || true
+  say "Dò sensor chip (sensors-detect)..."
+  yes '' | sensors-detect >/dev/null 2>&1 || true
   systemctl restart systemd-modules-load.service 2>/dev/null || true
   if sensors 2>/dev/null | grep -q '°C'; then
     ok "Đọc được nhiệt độ:"
@@ -477,10 +494,12 @@ f_sensors() {
 enable_god_module() { # bật 1 module trong /etc/netdata/go.d.conf, không phá phần khác
   local mod="$1" f="$NDDIR/go.d.conf"
   backup_file "$f"
+  local esc_mod
+  esc_mod="$(printf '%s' "$mod" | sed 's/[^^]/[&]/g; s/\^/\\^/g')"
   if [ ! -f "$f" ]; then
     printf 'enabled: yes\ndefault_run: yes\nmodules:\n  %s: yes\n' "$mod" > "$f"
-  elif grep -Eq "^[#[:space:]]*${mod}:" "$f"; then
-    sed -i -E "s|^[#[:space:]]*(${mod}:).*|  \1 yes|" "$f"
+  elif grep -Eq "^[#[:space:]]*${esc_mod}:" "$f"; then
+    sed -i -E "s|^[#[:space:]]*(${esc_mod}:).*|  \1 yes|" "$f"
   elif grep -q '^modules:' "$f"; then
     sed -i "/^modules:/a\\  ${mod}: yes" "$f"
   else
@@ -547,12 +566,22 @@ f_docker() {
   if id -nG netdata 2>/dev/null | grep -qw docker; then
     ok "User netdata đã ở trong group docker."
   else
-    if usermod -aG docker netdata 2>/dev/null; then
-      ok "Đã thêm user netdata vào group docker (áp dụng sau khi restart netdata)."
-    else
-      warn "Không thêm được netdata vào group docker — kiểm tra user/group tồn tại."
+    if ask_yn "→ Thêm user netdata vào group docker (để Netdata đọc được container)?" y; then
+      if usermod -aG docker netdata 2>/dev/null; then
+        ok "Đã thêm user netdata vào group docker (áp dụng sau khi restart netdata)."
+      else
+        warn "Không thêm được netdata vào group docker — kiểm tra quyền root."
+      fi
     fi
   fi
+  # Cấu hình cgroups plugin để thấy Docker containers rõ ràng trên dashboard
+  local cgf="$NDDIR/netdata.conf"
+  backup_file "$cgf"
+  ini_set "$cgf" "plugin:cgroups" "check for new cgroups every" "5"
+  ini_set "$cgf" "plugin:cgroups" "enable new cgroups detected at runtime" "yes"
+  ini_set "$cgf" "plugin:cgroups" "enable cgroups-detailed" "yes"
+  ini_set "$cgf" "plugin:cgroups" "enable by default" "docker"
+  ok "Cgroups plugin: sẽ monitor toàn bộ Docker containers (CPU, mem, net, disk)."
 }
 
 #---- Ping internet: node tự biết đường ra ngoài của chính nó -----------------
@@ -587,6 +616,78 @@ jobs:
       - '*.service'
 EOF
   ok "Theo dõi mọi *.service: active / failed / inactive — service chết là thấy."
+}
+
+#---- eBPF: per-process CPU, disk, network, memory ----------------------------
+f_ebpf() {
+  title "eBPF (per-process CPU/disk/network/memory)"
+  local plugdir
+  for plugdir in /usr/libexec/netdata/plugins.d /usr/lib/netdata/plugins.d; do
+    [ -f "$plugdir/ebpf.plugin" ] && break
+    plugdir=""
+  done
+  if [ -z "$plugdir" ]; then
+    warn "eBPF plugin không tìm thấy trong gói Netdata — thử cài gói bổ sung..."
+    apt_install netdata-plugin-ebpf 2>/dev/null || { warn "Không có gói netdata-plugin-ebpf riêng — plugin có sẵn trong bản cài default."; }
+  fi
+  local f="$NDDIR/netdata.conf"
+  backup_file "$f"
+  ini_set "$f" "plugins" "ebpf" "yes"
+  ini_set "$f" "plugin:ebpf" "load mode" "normal"
+  ini_set "$f" "plugin:ebpf" "disable apps" "no"
+  ini_set "$f" "plugin:ebpf" "process monitoring" "yes"
+  ok "eBPF: per-process CPU, disk I/O, network traffic, memory (swap) — chart cực kỳ chi tiết."
+  say "Yêu cầu kernel ≥ 4.15 (có CONFIG_BPF) — hầu hết Ubuntu 20.04+ đều đủ."
+}
+
+#---- Network viewer: kết nối mạng per-process (thay netstat) ------------------
+f_netviewer() {
+  title "Network viewer (kết nối mạng per-process)"
+  enable_god_module networkviewer
+  local f="$NDDIR/go.d/networkviewer.conf"
+  mkdir -p "$NDDIR/go.d"
+  backup_file "$f"
+  cat > "$f" << 'EOF'
+# Sinh bởi netdata-setup.sh — monitor socket connections per process
+jobs:
+  - name: connections
+    protocols:
+      - tcp
+      - udp
+    listen: yes
+    states:
+      - established
+      - listen
+      - time_wait
+      - close_wait
+EOF
+  ok "Network viewer: dashboard có chart 'Network Connections' — biết process nào đang listen/connect."
+}
+
+#---- Port check: kiểm tra port cụ thể -----------------------------------------
+f_portcheck() {
+  title "Port check (giám sát port cụ thể)"
+  local f="$NDDIR/go.d/portcheck.conf"
+  mkdir -p "$NDDIR/go.d"
+  backup_file "$f"
+  cat > "$f" << 'EOF'
+# Sinh bởi netdata-setup.sh — kiểm tra port dịch vụ quan trọng
+jobs:
+  - name: web
+    hosts:
+      - 127.0.0.1
+    ports:
+      - 80
+      - 443
+  - name: dns
+    hosts:
+      - 1.1.1.1
+      - 8.8.8.8
+    ports:
+      - 53
+EOF
+  ok "Port check: dashboard chart port/service availability + response time."
+  say "Sửa /etc/netdata/go.d/portcheck.conf để thêm port theo ý muốn, rồi restart netdata."
 }
 
 #---- S.M.A.R.T.: sức khỏe ổ cứng vật lý --------------------------------------
@@ -657,6 +758,7 @@ f_telegram() {
 TELEGRAM_BOT_TOKEN=\"$TG_TOKEN\"
 DEFAULT_RECIPIENT_TELEGRAM=\"$TG_CHAT\""
   chmod 640 "$NDDIR/health_alarm_notify.conf" 2>/dev/null || true
+  chown netdata:netdata "$NDDIR/health_alarm_notify.conf" 2>/dev/null || true
   ok "Đã bật kênh Telegram cho health engine (kèm ~300 alert mặc định của Netdata)."
   WANT_TG_TEST=1
 }
@@ -753,7 +855,7 @@ f_ipwatch() {
 TOKEN="__TOKEN__"
 CHAT="__CHAT__"
 STATE=/var/tmp/last_public_ip
-NEW=$(curl -s --max-time 5 https://ifconfig.me || curl -s --max-time 5 https://api.ipify.org)
+NEW=$(curl -s --max-time 5 https://ifconfig.me || curl -s --max-time 5 https://api.ipify.org || curl -s --max-time 5 https://ifconfig.co)
 [ -z "$NEW" ] && exit 0
 OLD=$(cat "$STATE" 2>/dev/null)
 if [ "$NEW" != "$OLD" ]; then
@@ -968,7 +1070,7 @@ f_ufw() {
     warn "Chưa cài ufw — bỏ qua."
     return 1
   fi
-  if ! ufw status 2>/dev/null | grep -q "Status: active"; then
+  if ! LANG=C ufw status 2>/dev/null | grep -q "Status: active"; then
     warn "ufw đang inactive — bỏ qua (không cần rule)."
     return 1
   fi
@@ -1072,18 +1174,24 @@ feat_common_add() { # các tính năng chung — build ĐỘNG theo kết quả 
 
   feat_add ping 1 "Ping internet (1.1.1.1, 8.8.8.8) — latency & mất mạng"
   feat_add sysd 1 "Trạng thái systemd services (*.service)"
+  feat_add ebpf 1 "eBPF per-process CPU/disk/network/memory" "kernel ≥ 4.15"
+  feat_add netview 1 "Network viewer (socket connections per process)"
+  feat_add portcheck 0 "Port check (giám sát port 80/443/DNS)"
 }
 
 apply_common() {
-  [ "${FEAT_ON[sensors]:-0}" = 1 ] && f_sensors
-  [ "${FEAT_ON[nvidia]:-0}"  = 1 ] && f_nvidia
-  [ "${FEAT_ON[igpu]:-0}"    = 1 ] && f_intelgpu
-  [ "${FEAT_ON[smart]:-0}"   = 1 ] && f_smart
-  [ "${FEAT_ON[ipmi]:-0}"    = 1 ] && f_ipmi
-  [ "${FEAT_ON[ups]:-0}"     = 1 ] && f_ups
-  [ "${FEAT_ON[docker]:-0}"  = 1 ] && f_docker
-  [ "${FEAT_ON[ping]:-0}"    = 1 ] && f_ping
-  [ "${FEAT_ON[sysd]:-0}"    = 1 ] && f_systemd
+  [ "${FEAT_ON[sensors]:-0}"  = 1 ] && f_sensors
+  [ "${FEAT_ON[nvidia]:-0}"   = 1 ] && f_nvidia
+  [ "${FEAT_ON[igpu]:-0}"     = 1 ] && f_intelgpu
+  [ "${FEAT_ON[smart]:-0}"    = 1 ] && f_smart
+  [ "${FEAT_ON[ipmi]:-0}"     = 1 ] && f_ipmi
+  [ "${FEAT_ON[ups]:-0}"      = 1 ] && f_ups
+  [ "${FEAT_ON[docker]:-0}"   = 1 ] && f_docker
+  [ "${FEAT_ON[ping]:-0}"     = 1 ] && f_ping
+  [ "${FEAT_ON[sysd]:-0}"     = 1 ] && f_systemd
+  [ "${FEAT_ON[ebpf]:-0}"     = 1 ] && f_ebpf
+  [ "${FEAT_ON[netview]:-0}"  = 1 ] && f_netviewer
+  [ "${FEAT_ON[portcheck]:-0}" = 1 ] && f_portcheck
   return 0
 }
 
@@ -1138,12 +1246,37 @@ verify_child() {
 }
 
 summary_parent() {
-  local ts pair_ip
+  local ts pair_ip choice opts
   ts="$(tailscale ip -4 2>/dev/null | head -1)"
-  pair_ip="$ts"
-  [ -n "$pair_ip" ] || pair_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  
+  title "CHỌN IP ĐỂ CHILD KẾT NỐI (PARENT)"
+  say "Chọn IP để CHILD stream dữ liệu về:"
+  
+  # Tạo danh sách lựa chọn
+  opts=()
+  [ -n "$ts" ] && opts+=("$ts" "Tailscale ($ts)")
+  opts+=("$(hostname -I | awk '{print $1}')" "IP Local")
+  local pub; pub="$(curl -s --max-time 3 https://ifconfig.me || curl -s --max-time 3 https://api.ipify.org || curl -s --max-time 3 https://ifconfig.co || true)"
+  [ -n "$pub" ] && opts+=("$pub" "IP Public ($pub)")
+  opts+=("manual" "Nhập IP tay")
 
-  # Lưu chuỗi ghép để xem lại bằng menu "3) Trạng thái" bất cứ lúc nào
+  # In menu
+  for i in $(seq 0 2 $((${#opts[@]}-1))); do
+    printf '   %d) %s\n' "$((i/2 + 1))" "${opts[i+1]}"
+  done
+
+  # Lấy lựa chọn
+  while true; do
+    read -rp "   ➜ Chọn (1-$(( ${#opts[@]} / 2 ))): " choice
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le $(( ${#opts[@]} / 2 )) ]; then
+       local idx=$(( (choice-1)*2 ))
+       pair_ip="${opts[idx]}"
+       [ "$pair_ip" = "manual" ] && pair_ip="$(ask_input 'Nhập IP')"
+       break
+    fi
+  done
+
+  # Lưu chuỗi ghép
   if [ -n "$pair_ip" ] && [ -n "$API_KEY" ]; then
     printf 'NDPAIR:%s:%s\n' "$pair_ip" "$API_KEY" > "$NDDIR/.ndpair"
     chmod 600 "$NDDIR/.ndpair"
@@ -1156,20 +1289,11 @@ summary_parent() {
    Backup cfg : $BACKUP_DIR
    Có sẵn     : per-NIC traffic, uptime, disk I/O, load... (Netdata mặc định)
 EOF
-  if [ -n "$pair_ip" ] && [ -n "$API_KEY" ]; then
-    hr
-    say "${B}COPY DÒNG DƯỚI${N} — khi setup CHILD, dán vào câu hỏi đầu tiên là xong:"
-    printf '\n   %sNDPAIR:%s:%s%s\n\n' "$B" "$pair_ip" "$API_KEY" "$N"
-    hr
-    say "Quên copy? Chạy lại tool → menu 3 (Trạng thái) sẽ in lại chuỗi này."
-  fi
-  cat << EOF
-
-   Bước tiếp theo — trên MỖI child (centre, VPS):
-     1) scp netdata-setup.sh <child>:~/
-     2) sudo bash netdata-setup.sh  →  chọn "2) Setup CHILD"
-     3) Dán chuỗi NDPAIR ở trên
-EOF
+  hr
+  say "${B}COPY DÒNG DƯỚI${N} — khi setup CHILD, dán vào câu hỏi đầu tiên:"
+  printf '\n   %sNDPAIR:%s:%s%s\n\n' "$B" "$pair_ip" "$API_KEY" "$N"
+  hr
+  say "Quên copy? Chạy lại tool → menu 3 (Trạng thái) sẽ in lại chuỗi này."
 }
 
 summary_child() {
@@ -1200,7 +1324,7 @@ setup_parent() {
 
   local ufw_on=0 ufw_note="chưa cài ufw"
   if command -v ufw >/dev/null 2>&1; then
-    if ufw status 2>/dev/null | grep -q "Status: active"; then
+    if LANG=C ufw status 2>/dev/null | grep -q "Status: active"; then
       ufw_on=1; ufw_note="ufw đang active"
     else
       ufw_note="ufw có nhưng inactive"
@@ -1318,7 +1442,7 @@ do_status() {
   local tsip pub
   tsip="$(tailscale ip -4 2>/dev/null | head -1)"
   [ -n "$tsip" ] && printf '    %-14s %s\n' "tailscale" "$tsip"
-  pub="$(curl -s --max-time 3 https://ifconfig.me || true)"
+  pub="$(curl -s --max-time 3 https://ifconfig.me || curl -s --max-time 3 https://api.ipify.org || curl -s --max-time 3 https://ifconfig.co || true)"
   [ -n "$pub" ] && printf '    %-14s %s\n' "public" "$pub"
 }
 
