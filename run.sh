@@ -1779,7 +1779,7 @@ EOF
 }
 
 # Cho phép `source` để test hàm mà không chạy menu
-[ "${BASH_SOURCE[0]}" = "$0" ] || return 0
+(return 0 2>/dev/null) && return 0
 
 case "${1:-}" in
   -h|--help)    usage; exit 0 ;;
